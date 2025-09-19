@@ -5,16 +5,16 @@ const { token, clientId, guildId } = require('./config.json');
 const commands = [
     {
         name: 'giveaway',
-        description: 'Giveaway commands',
+        description: '이벤트 명령어',
         options: [
             {
                 name: 'create',
-                description: 'Create a new giveaway',
+                description: '새 이벤트를 만듭니다.',
                 type: 1, // SUB_COMMAND
                 options: [
                     {
                         name: 'prize',
-                        description: 'The prize of the giveaway',
+                        description: '이벤트의 상품',
                         type: 3, // STRING
                         required: true,
                     },
@@ -22,12 +22,12 @@ const commands = [
             },
             {
                 name: 'end',
-                description: 'End an active giveaway',
+                description: '활성화된 이벤트를 종료합니다.',
                 type: 1, // SUB_COMMAND
                 options: [
                     {
                         name: 'message_id',
-                        description: 'The message ID of the giveaway to end',
+                        description: '이벤트의 메세지',
                         type: 3, // STRING
                         required: true,
                     },
@@ -35,24 +35,24 @@ const commands = [
             },
             {
                 name: 'weight',
-                description: 'Set a weight for a user in a giveaway',
+                description: '유저에게 가중치를 부여합니다.',
                 type: 1, // SUB_COMMAND
                 options: [
                     {
                         name: 'message_id',
-                        description: 'The message ID of the giveaway',
+                        description: '이벤트의 메세지 id',
                         type: 3, // STRING
                         required: true,
                     },
                     {
                         name: 'user',
-                        description: 'The user to set the weight for',
+                        description: '유저',
                         type: 6, // USER
                         required: true,
                     },
                     {
                         name: 'weight',
-                        description: 'The weight to set for the user',
+                        description: '가중치',
                         type: 4, // INTEGER
                         required: true,
                     },
@@ -60,24 +60,24 @@ const commands = [
             },
             {
                 name: 'pick',
-                description: 'Pick a user to have a higher chance of winning',
+                description: '유저를 선택해 확률을 지정합니다.',
                 type: 1, // SUB_COMMAND
                 options: [
                     {
                         name: 'message_id',
-                        description: 'The message ID of the giveaway',
+                        description: '이벤트의 메세지 id',
                         type: 3, // STRING
                         required: true,
                     },
                     {
                         name: 'user',
-                        description: 'The user to pick',
+                        description: '유저',
                         type: 6, // USER
                         required: true,
                     },
                     {
                         name: 'probability',
-                        description: 'The probability of the user winning (0-100)',
+                        description: '유저가 이길 확률 (0 ~ 100)',
                         type: 4, // INTEGER
                         required: true,
                     },
@@ -87,16 +87,16 @@ const commands = [
     },
     {
         name: 'config',
-        description: 'Configuration commands',
+        description: '설정 명령어',
         options: [
             {
                 name: 'excluded-role',
-                description: 'Set the role to be excluded from giveaways',
+                description: '이벤트에 제외된 역할',
                 type: 1, // SUB_COMMAND
                 options: [
                     {
                         name: 'role',
-                        description: 'The role to exclude',
+                        description: '제외될 역할',
                         type: 8, // ROLE
                         required: true,
                     },
@@ -104,7 +104,7 @@ const commands = [
             },
             {
                 name: 'show',
-                description: 'Show the current configuration',
+                description: '현재 설정 보기',
                 type: 1, // SUB_COMMAND
             },
         ],

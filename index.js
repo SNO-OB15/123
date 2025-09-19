@@ -28,8 +28,8 @@ client.on('interactionCreate', async interaction => {
         if (subcommand === 'create') {
             const prize = options.getString('prize');
             const embed = new EmbedBuilder()
-                .setTitle('🎉 Giveaway! 🎉')
-                .setDescription(`React with 🎉 to enter!\nPrize: **${prize}**`)
+                .setTitle('🎉 이벤트! 🎉')
+                .setDescription(`🎉 반응을 눌러 응모하세요! \nPrize: **${prize}**`)
                 .setColor('Random')
                 .setTimestamp();
 
@@ -46,13 +46,13 @@ client.on('interactionCreate', async interaction => {
                 pickedUser: null
             });
 
-            await interaction.reply({ content: 'Giveaway created!', ephemeral: true });
+            await interaction.reply({ content: '이벤트가 개설되었습니다.', ephemeral: true });
         } else if (subcommand === 'end') {
             const messageId = options.getString('message_id');
             const giveaway = giveaways.get(messageId);
 
             if (!giveaway || giveaway.ended) {
-                return interaction.reply({ content: 'This giveaway is not active or does not exist.', ephemeral: true });
+                return interaction.reply({ content: '이 이벤트는 아직 활성화 되어있지 않거나, 존재하지 않습니다.', ephemeral: true });
             }
 
             const giveawayMessage = await interaction.channel.messages.fetch(giveaway.messageId);
@@ -75,7 +75,7 @@ client.on('interactionCreate', async interaction => {
             }
 
             if (weightedParticipants.length === 0) {
-                return interaction.reply({ content: 'No one entered the giveaway.', ephemeral: true });
+                return interaction.reply({ content: '아무도 응모하지 않았습니다.', ephemeral: true });
             }
 
             let winner;
@@ -90,14 +90,14 @@ client.on('interactionCreate', async interaction => {
             giveaways.set(messageId, giveaway);
 
             const winnerEmbed = new EmbedBuilder()
-                .setTitle('🎉 Giveaway Ended! 🎉')
-                .setDescription(`Winner: ${winner}!\nPrize: **${giveaway.prize}**`)
+                .setTitle('🎉 이벤트가 끝났습니다! 🎉')
+                .setDescription(`당첨자: ${winner}!\nPrize: **${giveaway.prize}**`)
                 .setColor('Random')
                 .setTimestamp();
 
             await interaction.channel.send({ embeds: [winnerEmbed] });
             giveawayMessage.edit({ components: [] });
-            await interaction.reply({ content: 'Giveaway ended!', ephemeral: true });
+            await interaction.reply({ content: '이벤트가 끝났습니다.', ephemeral: true });
 
         } else if (subcommand === 'weight') {
             const messageId = options.getString('message_id');
@@ -106,15 +106,15 @@ client.on('interactionCreate', async interaction => {
 
             const giveaway = giveaways.get(messageId);
             if (!giveaway) {
-                return interaction.reply({ content: 'Giveaway not found.', ephemeral: true });
+                return interaction.reply({ content: '이벤트 not found', ephemeral: true });
             }
 
             if (weight <= 0) {
-                return interaction.reply({ content: 'Weight must be a positive number.', ephemeral: true });
+                return interaction.reply({ content: '가중치는 양수여야 합니다.', ephemeral: true });
             }
 
             giveaway.weights.set(user.id, weight);
-            await interaction.reply({ content: `Set weight for user ${user} to ${weight} in giveaway ${messageId}.`, ephemeral: true });
+            await interaction.reply({ content: ` ${user} 에게 ${weight} 가중치를 ${messageId} 이벤트에 추가하였습니다.`, ephemeral: true });
 
         } else if (subcommand === 'pick') {
             const messageId = options.getString('message_id');
@@ -123,15 +123,15 @@ client.on('interactionCreate', async interaction => {
 
             const giveaway = giveaways.get(messageId);
             if (!giveaway) {
-                return interaction.reply({ content: 'Giveaway not found.', ephemeral: true });
+                return interaction.reply({ content: '이벤트 not found.', ephemeral: true });
             }
 
             if (probability < 0 || probability > 100) {
-                return interaction.reply({ content: 'Probability must be between 0 and 100.', ephemeral: true });
+                return interaction.reply({ content: '0과 100 사이의 수여야 합니다.', ephemeral: true });
             }
 
             giveaway.pickedUser = { id: user.id, probability: probability };
-            await interaction.reply({ content: `User ${user} has a ${probability}% chance to win giveaway ${messageId}.`, ephemeral: true });
+            await interaction.reply({ content: `User ${user} 는 ${probability}% 의 확률로 ${messageId} 이벤트에 설정되었습니다.`, ephemeral: true });
         }
     } else if (commandName === 'config') {
         const subcommand = options.getSubcommand();
