@@ -3,6 +3,7 @@ const {
     ActionRowBuilder, ButtonBuilder, ButtonStyle 
 } = require('discord.js');
 const { token } = require('./config.json');
+const fs = require('fs');
 
 const client = new Client({
     intents: [
@@ -13,12 +14,44 @@ const client = new Client({
     partials: [Partials.Message, Partials.Channel, Partials.Reaction],
 });
 
-const giveaways = new Map();
+const DATA_FILE = 'giveaways.json';
+let giveaways = new Map();
 let excludedRoleId = null;
 
-client.once('ready', () => {
-    console.log('Ready!');
-});
+// ------------------------------
+// 데이터 저장 & 불러오기
+// ------------------------------
+function saveData() {
+    const plain = {
+        excludedRoleId,
+        giveaways: Array.from(giveaways.entries()).map(([id, g]) => [
+            id,
+            {
+                ...g,
+                weights: Object.fromEntries(g.weights) // Map → Object
+            }
+        ])
+    };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(plain, null, 2), 'utf-8');
+}
+
+function loadData() {
+    if (!fs.existsSync(DATA_FILE)) return;
+    const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw);
+    excludedRoleId = parsed.excludedRoleId || null;
+    giveaways = new Map(
+        parsed.giveaways.map(([id, g]) => [
+            id,
+            {
+                ...g,
+                weights: new Map(Object.entries(g.weights || {})) // Object → Map
+            }
+        ])
+    );
+}
 
 // ------------------------------
 // 확률 계산 함수
@@ -57,9 +90,6 @@ async function calculateParticipants(interaction, giveaway) {
     return participants;
 }
 
-// ------------------------------
-// 페이지 렌더링 함수
-// ------------------------------
 function renderPage(participants, page, pageSize = 10) {
     const start = page * pageSize;
     const slice = participants.slice(start, start + pageSize);
@@ -86,6 +116,14 @@ function getNavRow(messageId, page, totalPages) {
 }
 
 // ------------------------------
+// 클라이언트 준비
+// ------------------------------
+client.once('ready', () => {
+    loadData();
+    console.log('Ready! 데이터 불러옴.');
+});
+
+// ------------------------------
 // 인터랙션 처리
 // ------------------------------
 client.on('interactionCreate', async interaction => {
@@ -99,6 +137,7 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand() && commandName === 'giveaway') {
         const subcommand = options.getSubcommand();
 
+        // 이벤트 생성
         if (subcommand === 'create') {
             const prize = options.getString('prize');
             const embed = new EmbedBuilder()
@@ -127,9 +166,11 @@ client.on('interactionCreate', async interaction => {
                 pickedUser: null
             });
 
+            saveData();
             await interaction.reply({ content: '이벤트가 개설되었습니다.', ephemeral: true });
         }
 
+        // 이벤트 종료
         else if (subcommand === 'end') {
             const messageId = options.getString('message_id');
             const giveaway = giveaways.get(messageId);
@@ -156,6 +197,7 @@ client.on('interactionCreate', async interaction => {
             }
 
             giveaway.ended = true;
+            saveData();
 
             const winnerEmbed = new EmbedBuilder()
                 .setTitle('🎉 이벤트 종료 🎉')
@@ -170,6 +212,7 @@ client.on('interactionCreate', async interaction => {
             await interaction.reply({ content: '이벤트를 종료했습니다.', ephemeral: true });
         }
 
+        // 가중치 설정
         else if (subcommand === 'weight') {
             const messageId = options.getString('message_id');
             const user = options.getUser('user');
@@ -180,9 +223,13 @@ client.on('interactionCreate', async interaction => {
             if (weight <= 0) return interaction.reply({ content: '가중치는 0보다 커야 합니다.', ephemeral: true });
 
             giveaway.weights.set(user.id, weight);
+            giveaways.set(messageId, giveaway);
+            saveData();
+
             await interaction.reply({ content: `${user} 에게 ${weight} 가중치를 설정했습니다.`, ephemeral: true });
         }
 
+        // pick 확률 설정
         else if (subcommand === 'pick') {
             const messageId = options.getString('message_id');
             const user = options.getUser('user');
@@ -195,6 +242,9 @@ client.on('interactionCreate', async interaction => {
             }
 
             giveaway.pickedUser = { id: user.id, probability };
+            giveaways.set(messageId, giveaway);
+            saveData();
+
             await interaction.reply({ content: `${user} 의 당첨 확률을 ${probability}%로 설정했습니다.`, ephemeral: true });
         }
     }
@@ -208,6 +258,7 @@ client.on('interactionCreate', async interaction => {
         if (subcommand === 'excluded-role') {
             const role = options.getRole('role');
             excludedRoleId = role.id;
+            saveData();
             await interaction.reply({ content: `제외 역할 ID가 ${excludedRoleId} 로 설정되었습니다.`, ephemeral: true });
         } else if (subcommand === 'show') {
             await interaction.reply({ content: `현재 설정\nExcluded Role ID: ${excludedRoleId || '없음'}`, ephemeral: true });
@@ -215,7 +266,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     // --------------------------
-    // 📊 확률 보기 버튼
+    // 📊 확률 보기 버튼 + 페이지
     // --------------------------
     if (interaction.isButton()) {
         // 확률 보기 눌렀을 때
@@ -237,7 +288,7 @@ client.on('interactionCreate', async interaction => {
             });
         }
 
-        // ◀ / ▶ 버튼 눌렀을 때
+        // ◀ / ▶ 페이지 이동
         else if (interaction.customId.startsWith('prev_') || interaction.customId.startsWith('next_')) {
             const [action, messageId, currentPage] = interaction.customId.split('_');
             const giveaway = giveaways.get(messageId);
