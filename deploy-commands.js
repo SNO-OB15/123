@@ -11,8 +11,8 @@ const commands = [
         name: 'create',
         description: '새 이벤트를 생성합니다.',
         options: [
-          { type: 3, name: 'name', description: '이벤트 이름', required: false },
           { type: 3, name: 'prize', description: '상품명', required: true },
+          { type: 3, name: 'name', description: '이벤트 이름', required: false },
         ],
       },
       {
@@ -49,27 +49,32 @@ const commands = [
     options: [
       {
         type: 1,
-        name: 'exclude-role',
-        description: '참여를 제외할 역할을 설정합니다.',
-        options: [
-          { type: 8, name: 'role', description: '제외할 역할', required: true }
-        ],
+        name: 'exclude-role-add',
+        description: '참여를 제외할 역할을 추가합니다.',
+        options: [{ type: 8, name: 'role', description: '제외할 역할', required: true }],
+      },
+      {
+        type: 1,
+        name: 'exclude-role-remove',
+        description: '참여 제외 목록에서 역할을 제거합니다.',
+        options: [{ type: 8, name: 'role', description: '제거할 역할', required: true }],
+      },
+      {
+        type: 1,
+        name: 'list-excluded',
+        description: '참여 제외된 역할 목록 보기',
       },
       {
         type: 1,
         name: 'add-role',
         description: '명령어 사용을 허용할 역할 추가',
-        options: [
-          { type: 8, name: 'role', description: '허용할 역할', required: true }
-        ],
+        options: [{ type: 8, name: 'role', description: '허용할 역할', required: true }],
       },
       {
         type: 1,
         name: 'remove-role',
         description: '명령어 사용 허용에서 역할 제거',
-        options: [
-          { type: 8, name: 'role', description: '제거할 역할', required: true }
-        ],
+        options: [{ type: 8, name: 'role', description: '제거할 역할', required: true }],
       },
       {
         type: 1,

@@ -10,36 +10,36 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.GuildMembers, // 역할 확인
+    GatewayIntentBits.GuildMembers,
   ],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction],
 });
 
 let giveaways = new Map();
-let excludedRoleId = null;
-let allowedRoleIds = []; // 명령어 허용 역할 목록
+let excludedRoleIds = [];  // ✅ 여러 개
+let allowedRoleIds = [];   // ✅ 허용된 역할
 
-// 저장/로드
+// ---------------- 저장/로드 ----------------
 function saveData() {
   const data = {
     giveaways: Array.from(giveaways.entries()),
-    excludedRoleId,
+    excludedRoleIds,
     allowedRoleIds,
   };
   fs.writeFileSync('./data.json.tmp', JSON.stringify(data, null, 2));
-  fs.renameSync('./data.json.tmp', './data.json'); // atomic write
+  fs.renameSync('./data.json.tmp', './data.json');
 }
 function loadData() {
   if (fs.existsSync('./data.json')) {
     const raw = fs.readFileSync('./data.json');
     const data = JSON.parse(raw);
     giveaways = new Map(data.giveaways);
-    excludedRoleId = data.excludedRoleId;
+    excludedRoleIds = data.excludedRoleIds || [];
     allowedRoleIds = data.allowedRoleIds || [];
   }
 }
 
-// 권한 체크
+// ---------------- 권한 체크 ----------------
 function hasPermission(interaction) {
   return (
     interaction.memberPermissions.has('Administrator') ||
@@ -47,7 +47,7 @@ function hasPermission(interaction) {
   );
 }
 
-// 참가자 확률 계산
+// ---------------- 확률 계산 ----------------
 async function calculateParticipants(interaction, giveaway) {
   const giveawayMessage = await interaction.channel.messages.fetch(giveaway.messageId).catch(() => null);
   if (!giveawayMessage) return [];
@@ -62,10 +62,11 @@ async function calculateParticipants(interaction, giveaway) {
   for (const user of users.values()) {
     if (user.bot) continue;
 
-    if (excludedRoleId) {
+    // 제외 역할 필터링
+    if (excludedRoleIds.length > 0) {
       const member = await interaction.guild.members.fetch(user.id).catch(() => null);
       if (!member) continue;
-      if (member.roles.cache.has(excludedRoleId)) continue;
+      if (excludedRoleIds.some(rid => member.roles.cache.has(rid))) continue;
     }
 
     const weight = giveaway.weights.get(user.id) || 1;
@@ -83,7 +84,7 @@ async function calculateParticipants(interaction, giveaway) {
     : 0;
   const othersTotal = Math.max(0, totalWeight - pickedWeight);
 
-  const withProb = participants.map(p => {
+  return participants.map(p => {
     if (pickedUserId && p.id === pickedUserId) {
       return { ...p, prob: pickedUserProb.toFixed(2) };
     }
@@ -91,8 +92,6 @@ async function calculateParticipants(interaction, giveaway) {
     const prob = othersTotal > 0 ? (remain * p.weight / othersTotal) : 0;
     return { ...p, prob: prob.toFixed(2) };
   });
-
-  return withProb;
 }
 
 client.once('ready', () => {
@@ -100,10 +99,11 @@ client.once('ready', () => {
   loadData();
 });
 
+// ---------------- 이벤트 ----------------
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand() && !interaction.isButton()) return;
 
-  // 🎉 giveaway 명령
+  // 🎉 giveaway
   if (interaction.commandName === 'giveaway') {
     if (!hasPermission(interaction)) {
       return interaction.reply({ content: '이 명령은 관리자 또는 허용된 역할만 사용할 수 있습니다.', ephemeral: true });
@@ -111,6 +111,7 @@ client.on('interactionCreate', async (interaction) => {
 
     const subcommand = interaction.options.getSubcommand();
 
+    // --- create ---
     if (subcommand === 'create') {
       const name = interaction.options.getString('name');
       const prize = interaction.options.getString('prize');
@@ -122,17 +123,18 @@ client.on('interactionCreate', async (interaction) => {
         .setColor(Math.floor(Math.random() * 0xFFFFFF))
         .setTimestamp();
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`show_prob_${Date.now()}`)
-          .setLabel('📊 확률 보기')
-          .setStyle(ButtonStyle.Primary)
-      );
-
-      const giveawayMessage = await interaction.channel.send({ embeds: [embed], components: [row] }).catch(() => null);
+      const giveawayMessage = await interaction.channel.send({ embeds: [embed] }).catch(() => null);
       if (!giveawayMessage) return interaction.reply({ content: '메시지 전송 실패', ephemeral: true });
 
       await giveawayMessage.react('🎉').catch(() => null);
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`show_prob_${giveawayMessage.id}`)
+          .setLabel('📊 확률 보기')
+          .setStyle(ButtonStyle.Primary)
+      );
+      await giveawayMessage.edit({ components: [row] });
 
       giveaways.set(giveawayMessage.id, {
         prize,
@@ -148,6 +150,7 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.reply({ content: '이벤트가 개설되었습니다.', ephemeral: true });
     }
 
+    // --- end ---
     else if (subcommand === 'end') {
       const messageId = interaction.options.getString('message_id');
       const giveaway = giveaways.get(messageId);
@@ -202,6 +205,7 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.reply({ content: '이벤트를 종료했습니다.', ephemeral: true });
     }
 
+    // --- weight ---
     else if (subcommand === 'weight') {
       const user = interaction.options.getUser('user');
       const weight = interaction.options.getInteger('weight');
@@ -210,6 +214,7 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.reply({ content: `${user.tag} 가중치 ${weight}로 설정됨.`, ephemeral: true });
     }
 
+    // --- pick ---
     else if (subcommand === 'pick') {
       const user = interaction.options.getUser('user');
       const prob = interaction.options.getNumber('probability');
@@ -219,7 +224,7 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 
-  // ⚙ config 명령
+  // ⚙ config
   if (interaction.commandName === 'config') {
     if (!hasPermission(interaction)) {
       return interaction.reply({ content: '이 명령은 관리자 또는 허용된 역할만 사용할 수 있습니다.', ephemeral: true });
@@ -227,13 +232,34 @@ client.on('interactionCreate', async (interaction) => {
 
     const subcommand = interaction.options.getSubcommand();
 
-    if (subcommand === 'exclude-role') {
+    // 제외 역할 추가
+    if (subcommand === 'exclude-role-add') {
       const role = interaction.options.getRole('role');
-      excludedRoleId = role.id;
-      saveData();
-      return interaction.reply({ content: `${role.name} 역할은 이벤트 제외 대상입니다.`, ephemeral: true });
+      if (!excludedRoleIds.includes(role.id)) {
+        excludedRoleIds.push(role.id);
+        saveData();
+      }
+      return interaction.reply({ content: `${role.name} 역할이 제외 목록에 추가되었습니다.`, ephemeral: true });
     }
 
+    // 제외 역할 제거
+    if (subcommand === 'exclude-role-remove') {
+      const role = interaction.options.getRole('role');
+      excludedRoleIds = excludedRoleIds.filter(r => r !== role.id);
+      saveData();
+      return interaction.reply({ content: `${role.name} 역할이 제외 목록에서 제거되었습니다.`, ephemeral: true });
+    }
+
+    // 제외 역할 목록
+    if (subcommand === 'list-excluded') {
+      if (excludedRoleIds.length === 0) {
+        return interaction.reply({ content: '현재 제외된 역할이 없습니다.', ephemeral: true });
+      }
+      const roleMentions = excludedRoleIds.map(rid => `<@&${rid}>`).join(', ');
+      return interaction.reply({ content: `제외된 역할: ${roleMentions}`, ephemeral: true });
+    }
+
+    // 허용 역할 추가
     if (subcommand === 'add-role') {
       const role = interaction.options.getRole('role');
       if (!allowedRoleIds.includes(role.id)) {
@@ -243,6 +269,7 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.reply({ content: `${role.name} 역할이 허용 목록에 추가되었습니다.`, ephemeral: true });
     }
 
+    // 허용 역할 제거
     if (subcommand === 'remove-role') {
       const role = interaction.options.getRole('role');
       allowedRoleIds = allowedRoleIds.filter(r => r !== role.id);
@@ -250,6 +277,7 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.reply({ content: `${role.name} 역할이 허용 목록에서 제거되었습니다.`, ephemeral: true });
     }
 
+    // 허용 역할 목록
     if (subcommand === 'list-roles') {
       if (allowedRoleIds.length === 0) {
         return interaction.reply({ content: '현재 허용된 역할이 없습니다.', ephemeral: true });
@@ -261,7 +289,8 @@ client.on('interactionCreate', async (interaction) => {
 
   // 📊 확률 버튼
   if (interaction.isButton() && interaction.customId.startsWith('show_prob_')) {
-    const giveaway = giveaways.get(interaction.customId.split('_')[2]);
+    const messageId = interaction.customId.split('_')[2];
+    const giveaway = giveaways.get(messageId);
     if (!giveaway) return interaction.reply({ content: '이벤트를 찾을 수 없습니다.', ephemeral: true });
 
     const participants = await calculateParticipants(interaction, giveaway);
